@@ -14,6 +14,9 @@
 
 package com.uraniborg.hubble;
 
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.annotation.SuppressLint;
@@ -51,6 +54,8 @@ public class MainActivity extends AppCompatActivity {
   private BuildInfo mBuildInfo;
   private PackageManager mPackageManager;
   private DevicePropertiesInfo mDeviceProps;
+  private HandlerThread mHandlerThread;
+  private Handler mHandler;
 
   private static String HEADER_FMT = "{ \"version\": \"%s\", \"%s\": %d,\n\"%s\": [\n";
   private static String FOOTER_STR = "\n]\n}";
@@ -65,6 +70,9 @@ public class MainActivity extends AppCompatActivity {
     mHardwareInfo = new HardwareInfo();
     mBuildInfo = new BuildInfo();
     mDeviceProps = new DevicePropertiesInfo();
+    mHandlerThread = new HandlerThread("HubbleWorkerThread");
+    mHandlerThread.start();
+    mHandler = new Handler(mHandlerThread.getLooper());
 
     mPackageManager = getPackageManager();
     if (mPackageManager == null) {
@@ -401,30 +409,37 @@ public class MainActivity extends AppCompatActivity {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_main);
 
-    long start = SystemClock.elapsedRealtime();
+    final TextView textView = findViewById(R.id.textView);
+    textView.setText(R.string.scan_start);
+
     initialize();
 
-    getInstalledPackagesInformation();
-    getAllCertificates();
-    getAllBinaries();
-    getAllLibraries();
-    getHardwareInformation();
-    getBuildInformation();
-    getDeviceProperties();
+    mHandler.post(() -> {
+      final long start = SystemClock.elapsedRealtime();
 
-    long stop = SystemClock.elapsedRealtime();
-    long duration = stop - start;
+      getInstalledPackagesInformation();
+      getAllCertificates();
+      getAllBinaries();
+      getAllLibraries();
+      getHardwareInformation();
+      getBuildInformation();
+      getDeviceProperties();
 
-    writePackagesToFile();
-    writeCertsToFile();
-    writeBinsToFile();
-    writeLibsToFile();
-    writeHardwareToFile();
-    writeBuildToFile();
-    writeDevicePropsToFile();
+      final long duration = SystemClock.elapsedRealtime() - start;
 
-    Log.d(TAG, String.format("Execution took %d ms.", duration));
-    Log.w(TAG, String.format("Build version: %d", Build.VERSION.SDK_INT));
-    Log.w(TAG, String.format("Results are available at: %s", Utilities.getResultStorageDirectory(this)));
+      writePackagesToFile();
+      writeCertsToFile();
+      writeBinsToFile();
+      writeLibsToFile();
+      writeHardwareToFile();
+      writeBuildToFile();
+      writeDevicePropsToFile();
+
+      Log.d(TAG, String.format("Execution took %d ms.", duration));
+      Log.w(TAG, String.format("Build version: %d", Build.VERSION.SDK_INT));
+      Log.w(TAG,
+              String.format("Results are available at: %s", Utilities.getResultStorageDirectory(this)));
+      runOnUiThread(() -> textView.setText(getResources().getString(R.string.scan_end)));
+    });
   }
 }
